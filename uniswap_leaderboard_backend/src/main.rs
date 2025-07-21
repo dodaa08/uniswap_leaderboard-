@@ -79,8 +79,8 @@ async fn main() {
         .nest("/api/v1", api_router)
         .layer(cors);
 
-    // Bind to 0.0.0.0 (not localhost) as required by Render
-    let addr = format!("0.0.0.0:{}", port);
+    
+    let addr = format!("0.0.0.0:3000");
     println!("Binding to: {}", addr);
     
     let listener = match tokio::net::TcpListener::bind(&addr).await {
