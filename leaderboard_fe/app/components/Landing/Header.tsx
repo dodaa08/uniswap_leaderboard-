@@ -3,7 +3,12 @@ import Link from 'next/link';
 import { FaGithub } from "react-icons/fa";
 import { FaShareSquare } from "react-icons/fa";
 
-const Header = () => {
+interface HeaderProps {
+  onSync?: () => void;
+  isSyncing?: boolean;
+}
+
+const Header = ({ onSync, isSyncing = false }: HeaderProps) => {
   return (
     <header className="bg-gray-900 text-white py-8 px-4 relative">
       <div className="max-w-6xl mx-auto text-center">
@@ -22,14 +27,42 @@ const Header = () => {
         </Link>
       </div>
       
-      {/* GitHub icon positioned with some margin from right and white background */}
-      <Link 
-        className='absolute top-6 right-12 hover:bg-gray-50 transition-transform duration-400 bg-gray-100 rounded-full p-2 mt-3' 
-        target='_blank' 
-        href="https://github.com/dodaa08/uniswap_leaderboard-"
-      >
-        <FaGithub className='text-gray-900 hover:text-black transition-colors' size={24} />
-      </Link>
+      {/* Top right buttons */}
+      <div className="absolute top-6 right-6 flex items-center space-x-3">
+        {/* Sync button */}
+        {onSync && (
+          <button
+            onClick={onSync}
+            disabled={isSyncing}
+            className="bg-green-600 hover:bg-green-700 disabled:bg-gray-600 disabled:cursor-not-allowed text-white px-3 py-2 rounded-lg transition-colors flex items-center space-x-2 text-sm"
+            title="Sync latest data from Uniswap"
+          >
+            {isSyncing ? (
+              <>
+                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white"></div>
+                <span>Syncing</span>
+              </>
+            ) : (
+              <>
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                <span>Sync</span>
+              </>
+            )}
+          </button>
+        )}
+        
+        {/* GitHub icon */}
+        <Link 
+          className='hover:bg-gray-50 transition-transform duration-400 bg-gray-100 rounded-full p-2' 
+          target='_blank' 
+          href="https://github.com/dodaa08/uniswap_leaderboard-"
+          title="View on GitHub"
+        >
+          <FaGithub className='text-gray-900 hover:text-black transition-colors' size={20} />
+        </Link>
+      </div>
     
     </header>
   );

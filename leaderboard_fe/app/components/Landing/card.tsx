@@ -4,13 +4,14 @@ import { FaCopy, FaCheck } from 'react-icons/fa';
 interface CardProps {
   address: string;
   rank: number;
-  tradingVolume: number;
+  tradingVolume: string; // Backend returns as string due to BigDecimal
   buyCount: number;
   sellCount: number;
-  lastActive: string;
+  lastTradeAt: string | null;
+  firstTradeAt: string | null;
 }
 
-const Card = ({ address, rank, tradingVolume, buyCount, sellCount, lastActive }: CardProps) => {
+const Card = ({ address, rank, tradingVolume, buyCount, sellCount, lastTradeAt, firstTradeAt }: CardProps) => {
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -27,13 +28,36 @@ const Card = ({ address, rank, tradingVolume, buyCount, sellCount, lastActive }:
     return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
   };
 
-  const formatVolume = (volume: number) => {
-    if (volume >= 1000000) {
-      return `$${(volume / 1000000).toFixed(2)}M`;
-    } else if (volume >= 1000) {
-      return `$${(volume / 1000).toFixed(1)}K`;
+  const formatVolume = (volume: string) => {
+    const numVolume = parseFloat(volume);
+    if (isNaN(numVolume)) return '$0';
+    
+    if (numVolume >= 1000000) {
+      return `$${(numVolume / 1000000).toFixed(2)}M`;
+    } else if (numVolume >= 1000) {
+      return `$${(numVolume / 1000).toFixed(1)}K`;
     }
-    return `$${volume.toLocaleString()}`;
+    return `$${numVolume.toLocaleString(undefined, { maximumFractionDigits: 2 })}`;
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return 'Unknown';
+    
+    try {
+      const date = new Date(dateString);
+      const now = new Date();
+      const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60));
+      
+      if (diffInMinutes < 60) {
+        return `${diffInMinutes}m ago`;
+      } else if (diffInMinutes < 1440) { // 24 hours
+        return `${Math.floor(diffInMinutes / 60)}h ago`;
+      } else {
+        return `${Math.floor(diffInMinutes / 1440)}d ago`;
+      }
+    } catch {
+      return 'Unknown';
+    }
   };
 
   return (
@@ -58,7 +82,7 @@ const Card = ({ address, rank, tradingVolume, buyCount, sellCount, lastActive }:
                 {copied ? <FaCheck size={14} className="text-green-400" /> : <FaCopy size={14} />}
               </button>
             </div>
-            <p className="text-gray-400 text-xs">Last active: {lastActive}</p>
+            <p className="text-gray-400 text-xs">Last trade: {formatDate(lastTradeAt)}</p>
           </div>
         </div>
 
