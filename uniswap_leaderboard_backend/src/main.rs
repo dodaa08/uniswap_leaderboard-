@@ -18,6 +18,7 @@ async fn main() {
     let db_pool = match PgPool::connect(&database_url).await {
         Ok(pool) => pool,
         Err(_) => {
+            println!("Database connection failed, starting minimal server");
             return start_minimal_server(port).await;
         }
     };
@@ -49,6 +50,7 @@ async fn start_minimal_server(port: String) {
     let app = Router::new()
         .route("/", get(|| async { "Hello from Minimal Rust Server on Render!" }))
         .route("/health", get(|| async { "OK" }))
+        .route("/api/v1/health", get(|| async { r#"{"status":"healthy","service":"uniswap_leaderboard_backend_minimal"}"# }))
         .layer(
             CorsLayer::new()
                 .allow_origin(Any)
