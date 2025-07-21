@@ -1,0 +1,17 @@
+[package]
+name = "uniswap_leaderboard_backend"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+axum = "0.8.4"
+sqlx = { version = "0.7.4", features = [ "runtime-tokio-native-tls", "postgres", "bigdecimal", "chrono", "macros", "rust_decimal" ] }
+chrono = { version = "0.4.38", features = [ "serde" ] }
+serde = { version = "1.0.219", features = ["derive"] }
+time = { version = "0.3.41", features = ["serde-human-readable"] }
+tokio = { version = "1.46.1", features = ["full"] }
+reqwest = { version = "0.12.22", features = ["json"] }
+serde_json = "1.0.141"
+rust_decimal = { version = "1.37.2", features = ["serde"] }
+dotenvy = "0.15.7"
+bigdecimal = { version = "0.4", features = ["serde"] }
