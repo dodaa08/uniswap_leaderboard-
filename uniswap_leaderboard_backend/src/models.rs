@@ -84,3 +84,4 @@ impl From<Trader> for TraderResponse {
         }
     }
 }
+
