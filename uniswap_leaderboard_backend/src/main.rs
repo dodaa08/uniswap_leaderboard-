@@ -8,8 +8,8 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
-    // Load environment variables from .env
-    dotenvy::dotenv().expect("Failed to read .env file");
+    // Load environment variables from .env (this will fail on Render, which is fine)
+    let _ = dotenvy::dotenv();
 
     let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
 
@@ -33,10 +33,11 @@ async fn main() {
     let app = Router::new()
         .nest("/api/v1", api_router);
 
-    // Start the server
-    let addr = "0.0.0.0:3000";
+    // Use PORT environment variable if available (for Render), otherwise default to 3000
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
     println!("🚀 Server listening on http://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await.unwrap();
+    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
     axum::serve(listener, app).await.unwrap();
 }
