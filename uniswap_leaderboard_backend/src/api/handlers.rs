@@ -1,5 +1,3 @@
-// src/api/handlers.rs
-
 use crate::models::{Trader, TraderResponse};
 use axum::{
     extract::{Path, Query, State},
@@ -24,8 +22,6 @@ pub async fn leaderboard_handler(
     State(db_pool): State<PgPool>,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<TraderResponse>>, StatusCode> {
-    println!("->> LEADERBOARD HANDLER - Fetching top traders...");
-
     let limit = pagination.page_size;
     let offset = (pagination.page - 1) * pagination.page_size;
 
@@ -51,8 +47,6 @@ pub async fn trader_handler(
     State(db_pool): State<PgPool>,
     Path(address): Path<String>,
 ) -> Result<Json<TraderResponse>, StatusCode> {
-    println!("->> TRADER HANDLER - Fetching details for address: {}", address);
-
     let trader = sqlx::query_as::<_, Trader>(
         r#"
         SELECT address, buy_count, sell_count, total_volume_usd, first_trade_at, last_trade_at
