@@ -1,6 +1,6 @@
 // src/api/handlers.rs
 
-use crate::models::Trader;
+use crate::models::{Trader, TraderResponse};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -23,7 +23,7 @@ fn default_page_size() -> u32 { 20 }
 pub async fn leaderboard_handler(
     State(db_pool): State<PgPool>,
     Query(pagination): Query<Pagination>,
-) -> Result<Json<Vec<Trader>>, StatusCode> {
+) -> Result<Json<Vec<TraderResponse>>, StatusCode> {
     println!("->> LEADERBOARD HANDLER - Fetching top traders...");
 
     let limit = pagination.page_size;
@@ -43,13 +43,14 @@ pub async fn leaderboard_handler(
     .await
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
 
-    Ok(Json(traders))
+    let trader_responses: Vec<TraderResponse> = traders.into_iter().map(|t| t.into()).collect();
+    Ok(Json(trader_responses))
 }
 
 pub async fn trader_handler(
     State(db_pool): State<PgPool>,
     Path(address): Path<String>,
-) -> Result<Json<Trader>, StatusCode> {
+) -> Result<Json<TraderResponse>, StatusCode> {
     println!("->> TRADER HANDLER - Fetching details for address: {}", address);
 
     let trader = sqlx::query_as::<_, Trader>(
@@ -65,5 +66,5 @@ pub async fn trader_handler(
     .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
     .ok_or(StatusCode::NOT_FOUND)?;
 
-    Ok(Json(trader))
+    Ok(Json(trader.into()))
 }

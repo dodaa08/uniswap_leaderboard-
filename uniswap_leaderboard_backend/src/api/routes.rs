@@ -14,8 +14,8 @@ pub fn create_router(db_pool: PgPool, http_client: Client) -> Router {
     let app_state = (db_pool, http_client);
 
     Router::new()
-        // CORRECT: Provide ONLY the http_client (app_state.1) to the sync_handler
-        .route("/sync", post(sync_handler).with_state(app_state.1))
+        // Provide BOTH the db_pool and http_client as a tuple to the sync_handler
+        .route("/sync", post(sync_handler).with_state(app_state.clone()))
         
         // Provide ONLY the db_pool (app_state.0) to the other handlers
         .route("/leaderboard", get(leaderboard_handler).with_state(app_state.0.clone()))
