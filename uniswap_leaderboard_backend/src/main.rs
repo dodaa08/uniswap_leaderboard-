@@ -8,36 +8,75 @@ use std::time::Duration;
 
 #[tokio::main]
 async fn main() {
+    println!("Starting Uniswap Leaderboard Backend...");
+    
     // Load environment variables from .env (this will fail on Render, which is fine)
     let _ = dotenvy::dotenv();
+    
+    // Get PORT environment variable, default to 3000
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    println!("PORT: {}", port);
+    
+    // Validate DATABASE_URL is present
+    let db_url = match std::env::var("DATABASE_URL") {
+        Ok(url) => {
+            println!("DATABASE_URL found");
+            url
+        }
+        Err(e) => {
+            eprintln!("ERROR: DATABASE_URL not set: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    let db_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
-
+    println!("Connecting to database...");
+    
     // Set up the database connection pool
-    let db_pool = PgPoolOptions::new()
+    let db_pool = match PgPoolOptions::new()
         .max_connections(5)
-        .acquire_timeout(Duration::from_secs(3))
+        .acquire_timeout(Duration::from_secs(10))
         .connect(&db_url)
         .await
-        .expect("Failed to create database pool");
+    {
+        Ok(pool) => {
+            println!("Database connection successful");
+            pool
+        }
+        Err(e) => {
+            eprintln!("ERROR: Failed to connect to database: {}", e);
+            std::process::exit(1);
+        }
+    };
 
-    println!("✅ Database connection successful");
-
-    // Create a single reqwest::Client to be shared across the application
+    // Create HTTP client
     let http_client = Client::new();
 
-    // Get our API routes from the other module
+    // Set up API routes
     let api_router = api::routes::create_router(db_pool.clone(), http_client);
 
-    // Create the main application router and nest our API routes under /api/v1
+    // Create the main application router
     let app = Router::new()
         .nest("/api/v1", api_router);
 
-    // Use PORT environment variable if available (for Render), otherwise default to 3000
-    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    // Bind to the server
     let addr = format!("0.0.0.0:{}", port);
-    println!("🚀 Server listening on http://{}", addr);
-
-    let listener = tokio::net::TcpListener::bind(&addr).await.unwrap();
-    axum::serve(listener, app).await.unwrap();
+    println!("Binding to: {}", addr);
+    
+    let listener = match tokio::net::TcpListener::bind(&addr).await {
+        Ok(listener) => {
+            println!("Successfully bound to {}", addr);
+            listener
+        }
+        Err(e) => {
+            eprintln!("ERROR: Failed to bind to {}: {}", addr, e);
+            std::process::exit(1);
+        }
+    };
+    
+    println!("Server listening on http://{}", addr);
+    
+    if let Err(e) = axum::serve(listener, app).await {
+        eprintln!("ERROR: Server crashed: {}", e);
+        std::process::exit(1);
+    }
 }

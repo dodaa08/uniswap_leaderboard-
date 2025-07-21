@@ -153,7 +153,7 @@ pub async fn sync_handler(
 async fn fetch_swaps(http_client: &Client) -> Result<Vec<Swap>, Box<dyn std::error::Error>> {
     let now = Utc::now();
     let end_time = now;
-    let start_time = now - Duration::days(30);
+    let start_time = now - Duration::hours(10);
 
     let start_timestamp = start_time.timestamp();
     let end_timestamp = end_time.timestamp();
