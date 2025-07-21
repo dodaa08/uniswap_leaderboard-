@@ -6,6 +6,7 @@ use reqwest::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
 use serde_json::json;
+use tower_http::cors::{CorsLayer, Any};
 
 #[tokio::main]
 async fn main() {
@@ -55,7 +56,17 @@ async fn main() {
     // Set up API routes
     let api_router = api::routes::create_router(db_pool.clone(), http_client);
 
-    // Create the main application router with both test routes and full API
+    // Configure CORS to allow frontend on port 3000
+    let cors = CorsLayer::new()
+        .allow_origin([
+            "http://localhost:3000".parse().unwrap(),
+            "https://localhost:3000".parse().unwrap(),
+            "http://127.0.0.1:3000".parse().unwrap(),
+        ])
+        .allow_methods(Any)
+        .allow_headers(Any);
+
+    // Create the main application router with CORS support
     let app = Router::new()
         .route("/", get(|| async { "Uniswap Leaderboard Backend - API available at /api/v1/" }))
         .route("/health", get(|| async { 
@@ -65,7 +76,8 @@ async fn main() {
                 "timestamp": chrono::Utc::now().to_rfc3339()
             }))
         }))
-        .nest("/api/v1", api_router);
+        .nest("/api/v1", api_router)
+        .layer(cors);
 
     // Bind to 0.0.0.0 (not localhost) as required by Render
     let addr = format!("0.0.0.0:{}", port);
@@ -83,6 +95,7 @@ async fn main() {
     };
     
     println!("Server listening on {}", addr);
+    println!("CORS enabled for frontend on port 3000");
     println!("API endpoints:");
     println!("  GET  /health - Health check");
     println!("  GET  /api/v1/health - API health check");

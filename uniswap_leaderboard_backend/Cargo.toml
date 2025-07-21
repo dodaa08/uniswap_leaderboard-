@@ -15,3 +15,4 @@ serde_json = "1.0.141"
 rust_decimal = { version = "1.37.2", features = ["serde"] }
 dotenvy = "0.15.7"
 bigdecimal = { version = "0.4", features = ["serde"] }
+tower-http = { version = "0.6", features = ["cors"] }
