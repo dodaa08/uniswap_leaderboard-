@@ -80,7 +80,8 @@ async fn main() {
         .layer(cors);
 
     
-    let addr = format!("0.0.0.0:3000");
+    // Bind to 0.0.0.0 (not localhost) as required by Render
+    let addr = format!("0.0.0.0:{}", port);
     println!("Binding to: {}", addr);
     
     let listener = match tokio::net::TcpListener::bind(&addr).await {
