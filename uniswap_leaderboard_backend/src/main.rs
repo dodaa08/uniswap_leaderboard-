@@ -1,10 +1,11 @@
 pub mod api;
 pub mod models;
 
-use axum::Router;
+use axum::{Router, Json, routing::get};
 use reqwest::Client;
 use sqlx::postgres::PgPoolOptions;
 use std::time::Duration;
+use serde_json::json;
 
 #[tokio::main]
 async fn main() {
@@ -13,10 +14,10 @@ async fn main() {
     // Load environment variables from .env (this will fail on Render, which is fine)
     let _ = dotenvy::dotenv();
     
-    // Get PORT environment variable, default to 3000
+    // Get PORT environment variable - Render will set this automatically
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
-    println!("PORT: {}", port);
-    
+    println!("Using PORT: {}", port);
+
     // Validate DATABASE_URL is present
     let db_url = match std::env::var("DATABASE_URL") {
         Ok(url) => {
@@ -54,11 +55,19 @@ async fn main() {
     // Set up API routes
     let api_router = api::routes::create_router(db_pool.clone(), http_client);
 
-    // Create the main application router
+    // Create the main application router with both test routes and full API
     let app = Router::new()
+        .route("/", get(|| async { "Uniswap Leaderboard Backend - API available at /api/v1/" }))
+        .route("/health", get(|| async { 
+            Json(json!({
+                "status": "healthy",
+                "service": "uniswap_leaderboard_backend",
+                "timestamp": chrono::Utc::now().to_rfc3339()
+            }))
+        }))
         .nest("/api/v1", api_router);
 
-    // Bind to the server
+    // Bind to 0.0.0.0 (not localhost) as required by Render
     let addr = format!("0.0.0.0:{}", port);
     println!("Binding to: {}", addr);
     
@@ -73,7 +82,13 @@ async fn main() {
         }
     };
     
-    println!("Server listening on http://{}", addr);
+    println!("Server listening on {}", addr);
+    println!("API endpoints:");
+    println!("  GET  /health - Health check");
+    println!("  GET  /api/v1/health - API health check");
+    println!("  GET  /api/v1/leaderboard - Get top traders");
+    println!("  GET  /api/v1/trader/{{address}} - Get trader details");
+    println!("  POST /api/v1/sync - Sync data from The Graph");
     
     if let Err(e) = axum::serve(listener, app).await {
         eprintln!("ERROR: Server crashed: {}", e);

@@ -3,10 +3,12 @@ services:
     name: uniswap-leaderboard-backend
     env: rust
     buildCommand: cargo build --release
-    startCommand: ./target/release/uniswap_leaderboard_backend
+    startCommand: cargo run --release
     healthCheckPath: /api/v1/health
     envVars:
       - key: DATABASE_URL
         sync: false
       - key: RUST_LOG
         value: info 
+
+        
