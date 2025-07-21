@@ -2,166 +2,68 @@
 
 use crate::models::{GraphQlResponse, Swap};
 use axum::{extract::State, http::StatusCode, Json};
+use chrono::{Duration, Utc};
 use reqwest::Client;
 use serde_json::json;
-use sqlx::{PgPool, Row};
-use std::collections::HashMap;
+use sqlx::PgPool;
 
-// src/api/sync.rs
+// pair : 0xEdc625B74537eE3a10874f53D170E9c17A906B9c
+// zora : 0x1111111111166b7FE7bd91427724B487980aFc69
+// usdc : 0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913
 
-// Use this new, stable, and public URL
-const THE_GRAPH_URL: &str = "https://subgraph.satsuma-xyz.net/satsuma/messari/uniswap-v3-base/api";
+const THE_GRAPH_URL: &str = "https://gateway.thegraph.com/api/458c04da34a7940de75b87e25a6f9f80/subgraphs/id/HMuAwufqZ1YCRmzL2SfHTVkzZovC9VL2UAKhjvRqKiR1";
+// --- UPDATE THIS LINE ---
+const POOL_ID: &str = "0xEdc625B74537eE3a10874f53D170E9c17A906B9c"; // This is the ZORA/USDC Pool you confirmed via cURL!
+// --- END UPDATE ---
 
-const POOL_ID: &str = "0x0fa0fb87a0ced71ae1c71bb0a7256433a2c56877";
-
-
-#[derive(Debug, Default)]
-struct TraderStats {
-    buys: i32,
-    sells: i32,
-    total_volume_usd: f64,
-}
-
+// This is the simplified handler that returns the fetched data.
 pub async fn sync_handler(
-    State((db_pool, http_client)): State<(PgPool, Client)>,
-) -> Result<Json<serde_json::Value>, StatusCode> {
-    println!("->> SYNC HANDLER - Fetching swaps...");
+    State(http_client): State<Client>,
+) -> Result<Json<Vec<Swap>>, StatusCode> {
+    println!("->> SYNC HANDLER - Fetching historical trades...");
 
-    let last_timestamp = get_last_timestamp(&db_pool).await.unwrap_or(0);
-    println!("    Last timestamp from DB: {}", last_timestamp);
-
-    let swaps = fetch_swaps(&http_client, last_timestamp)
+    // The rest of the logic remains the same
+    let swaps = fetch_swaps(&http_client)
         .await
         .map_err(|e| {
             eprintln!("    Error fetching swaps: {:?}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
 
-    let swaps_count = swaps.len();
-    println!("    Fetched {} new swaps.", swaps_count);
-
-    if swaps_count == 0 {
-        let response = json!({ "status": "success", "message": "No new swaps to process." });
-        return Ok(Json(response));
-    }
-
-    let processed_traders = process_and_save_swaps(&db_pool, swaps).await.map_err(|e| {
-        eprintln!("    Error processing and saving swaps: {:?}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
-
-    let response = json!({
-        "status": "success",
-        "swaps_fetched": swaps_count,
-        "traders_updated": processed_traders,
-    });
-
-    Ok(Json(response))
+    println!("    Fetched {} swaps. Returning them as JSON.", swaps.len());
+    Ok(Json(swaps))
 }
 
-async fn process_and_save_swaps(
-    db_pool: &PgPool,
-    swaps: Vec<Swap>,
-) -> Result<usize, sqlx::Error> {
-    let mut trader_stats: HashMap<String, TraderStats> = HashMap::new();
+// This function now fetches swaps from a 1-hour window that happened 7 days ago.
+async fn fetch_swaps(http_client: &Client) -> Result<Vec<Swap>, Box<dyn std::error::Error>> {
+    let now = Utc::now();
+    let end_time = now - Duration::days(7); // Calculates the end of the window 7 days ago from *now*
+    let start_time = end_time - Duration::hours(1); // Calculates 1 hour before that end time
 
-    for swap in swaps {
-        let stats = trader_stats.entry(swap.origin).or_default();
-        let volume_usd: f64 = swap.amount_usd.parse().unwrap_or(0.0);
-        let amount1: f64 = swap.amount1.parse().unwrap_or(0.0);
+    let start_timestamp = start_time.timestamp();
+    let end_timestamp = end_time.timestamp();
 
-        if amount1 > 0.0 {
-            stats.buys += 1;
-        } else {
-            stats.sells += 1;
+    let query = r#"
+        query getSwapsInTimeRange($pool_id: String!, $start_time: BigInt!, $end_time: BigInt!) {
+          swaps(first: 100, orderBy: timestamp, orderDirection: asc, where: { pool: $pool_id, timestamp_gte: $start_time, timestamp_lte: $end_time }) {
+            timestamp, amountUSD, origin, token0 { symbol }, token1 { symbol }, amount0, amount1
+          }
         }
-        stats.total_volume_usd += volume_usd;
-    }
+    "#;
+    
+    let variables = json!({
+        "pool_id": POOL_ID, // This will now use the correct ZORA/USDC pool ID
+        "start_time": start_timestamp.to_string(),
+        "end_time": end_timestamp.to_string()
+    });
+    
+    let request_body = json!({ "query": query, "variables": variables });
 
-    for (address, stats) in &trader_stats {
-        let volume_decimal = rust_decimal::Decimal::try_from(stats.total_volume_usd).unwrap();
-        sqlx::query(
-            r#"
-            INSERT INTO traders (address, buy_count, sell_count, total_volume_usd, first_trade_at, last_trade_at)
-            VALUES ($1, $2, $3, $4, NOW(), NOW())
-            ON CONFLICT (address) DO UPDATE
-            SET
-                buy_count = traders.buy_count + $2,
-                sell_count = traders.sell_count + $3,
-                total_volume_usd = traders.total_volume_usd + $4,
-                last_trade_at = NOW(),
-                updated_at = NOW();
-            "#
-        )
-        .bind(address)
-        .bind(stats.buys)
-        .bind(stats.sells)
-        .bind(volume_decimal)
-        .execute(db_pool)
-        .await?;
-    }
-
-    Ok(trader_stats.len())
-}
-
-async fn fetch_swaps(
-    http_client: &Client,
-    last_timestamp: i64,
-) -> Result<Vec<Swap>, Box<dyn std::error::Error>> {
-    // Use timestamp from DB or 0 if empty
-    let timestamp_to_use = if last_timestamp == 0 {
-        "0"
-    } else {
-        &last_timestamp.to_string()
-    };
-    
-    let query = format!(r#"
-        query getSwapsForPool {{
-          swaps(
-            first: 100
-            orderBy: timestamp
-            orderDirection: asc
-            where: {{
-              pool: "0x0fa0fb87a0ced71ae1c71bb0a7256433a2c56877",
-              timestamp_gt: "{}"
-            }}
-          ) {{
-            id
-            timestamp
-            token0 {{
-              symbol
-            }}
-            token1 {{
-              symbol
-            }}
-            amount0
-            amount1
-            amountUSD
-            origin
-          }}
-        }}
-    "#, timestamp_to_use);
-    
-    let request_body = json!({ "query": query });
-    
-    println!("    Making GraphQL request to: {}", THE_GRAPH_URL);
-    println!("    Query: {}", query);
-    
+    println!("    Fetching swaps between {} and {}", start_time, end_time);
     let response = http_client.post(THE_GRAPH_URL).json(&request_body).send().await?;
-    let response_text = response.text().await?;
+    let graph_response: GraphQlResponse = response.json().await?;
     
-    println!("    GraphQL response: {}", response_text);
-    
-    let graph_response: GraphQlResponse = serde_json::from_str(&response_text)?;
     Ok(graph_response.data.map_or_else(Vec::new, |d| d.swaps))
 }
 
-async fn get_last_timestamp(db_pool: &PgPool) -> Result<i64, sqlx::Error> {
-    println!("    Querying database for last timestamp...");
-    let result = sqlx::query("SELECT EXTRACT(EPOCH FROM MAX(last_trade_at)) as max FROM traders")
-        .fetch_one(db_pool)
-        .await?;
-    let timestamp = result.try_get::<Option<f64>, _>("max")?.map_or(0, |v| v as i64);
-    println!("    Database returned timestamp: {}", timestamp);
-    Ok(timestamp)
-}
+
