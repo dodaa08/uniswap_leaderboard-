@@ -4,7 +4,7 @@ import Header from '../../components/Landing/Header';
 import Card from '../../components/Landing/card';
 import Pagination from '../../components/Landing/Pagination';
 
-const API_BASE_URL = 'https://uniswap-leaderboard-2.onrender.com/api/v1';
+const API_BASE_URL = 'http://localhost:3000/api/v1';
 
 interface LeaderboardEntry {
   address: string;
@@ -37,6 +37,7 @@ const LandingPage = () => {
   const fetchLeaderboardData = async (page: number = 1, pageSize: number = 100) => {
     setIsLoading(true);
     setError(null);
+    
     try {
       const response = await fetch(`${API_BASE_URL}/leaderboard?page=${page}&page_size=${pageSize}`);
       if (!response.ok) {
@@ -59,7 +60,7 @@ const LandingPage = () => {
       setIsLoaded(true);
     } catch (err) {
       console.error('Error fetching leaderboard data:', err);
-      setError('Failed to load leaderboard data. Please check if the backend is running.');
+      setError('Failed to load leaderboard data. Please ensure database is connected.');
       setIsLoaded(true);
     } finally {
       setIsLoading(false);
@@ -85,7 +86,7 @@ const LandingPage = () => {
       await fetchLeaderboardData();
     } catch (err) {
       console.error('Error syncing data:', err);
-      setError('Failed to sync data. Please try again.');
+      setError('Failed to sync data. Please ensure database is connected.');
     } finally {
       setIsSyncing(false);
     }
@@ -142,6 +143,7 @@ const LandingPage = () => {
       <Header onSync={handleSync} isSyncing={isSyncing} />
       
       <main className="max-w-4xl mx-auto px-4 py-8">
+        {/* Mock data indicator */}
         {/* Error display */}
         {error && (
           <div className="bg-red-900/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6">

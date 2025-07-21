@@ -12,7 +12,8 @@ async fn main() {
     let port = env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     
     let database_url = env::var("DATABASE_URL").unwrap_or_else(|_| {
-        "postgres://localhost/uniswap_leaderboard".to_string()
+        "postgresql://neondb_owner:npg_Sntghz2Ul6Ze@ep-long-flower-aesw5zo8-pooler.c-2.us-east-2.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+".to_string()
     });
     
     let db_pool = match PgPool::connect(&database_url).await {
